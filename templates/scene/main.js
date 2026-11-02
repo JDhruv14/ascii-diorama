@@ -1,9 +1,10 @@
 // Starter miniature: red gates running down a cliff to the sea, a fox on the steps. Replace piece by piece.
+// Runs live in the browser and loops forever (Space pauses).
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
-const W = 1440, HH = 1440, DURATION = 24;
+const W = 1440, HH = 1440, DURATION = 24; // canvas size; DURATION is one camera sweep in seconds
 const COLS = 200, ROWS = 100;
 const CLS = { grass: 1, leaf: 2, flower: 3, stone: 4, stair: 5, torii: 6, wood: 7, sand: 8, water: 9, foam: 10, fox: 11, roof: 12, rock: 13 };
 
@@ -441,7 +442,7 @@ void main(){
 }`;
 
 async function main() {
-  const renderer = new THREE.WebGLRenderer({ antialias: false, preserveDrawingBuffer: true, powerPreference: 'high-performance' });
+  const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
   renderer.setPixelRatio(1); renderer.setSize(W, HH);
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   document.body.appendChild(renderer.domElement);
@@ -472,7 +473,8 @@ async function main() {
   const camera = new THREE.PerspectiveCamera(23, W / HH, 5, 400);
   const TARGET = new THREE.Vector3(0, 5.4, 3);
   function placeCamera(t) {
-    const k = t / DURATION, az = THREE.MathUtils.degToRad(-7 + 14 * (k * k * (3 - 2 * k))), el = THREE.MathUtils.degToRad(52 + 1.4 * Math.sin(k * 3.14)), R = 76 - 2.5 * k;
+    // Eased sweep across one period, back again on the next, so a live loop never jumps.
+    const k = .5 - .5 * Math.cos(Math.PI * t / DURATION), az = THREE.MathUtils.degToRad(-7 + 14 * k), el = THREE.MathUtils.degToRad(52 + 1.4 * Math.sin(k * 3.14)), R = 76 - 2.5 * k;
     camera.position.set(TARGET.x + Math.sin(az) * Math.cos(el) * R, TARGET.y + Math.sin(el) * R, TARGET.z + Math.cos(az) * Math.cos(el) * R);
     camera.lookAt(TARGET); camera.updateMatrixWorld();
   }
@@ -490,7 +492,7 @@ async function main() {
   const dummy = new THREE.Object3D(), SPEED = .78, FOX_START = pathLen * .33;
   function drawFrame(t) {
     time.value = t; placeCamera(t);
-    const u = clamp((FOX_START + t * SPEED) / pathLen), p = pathCurve.getPointAt(u), tg = pathCurve.getTangentAt(u);
+    const u = clamp((FOX_START + (t * SPEED) % (pathLen * .6)) / pathLen), p = pathCurve.getPointAt(u), tg = pathCurve.getTangentAt(u);
     fox.position.set(p.x, samp(fY, p.x, p.z) + .1, p.z); fox.rotation.y = Math.atan2(tg.x, tg.z);
     foxMix.setTime(t * 1.15);
     petalS.forEach((s, i) => {
@@ -504,7 +506,17 @@ async function main() {
     quad.material = ascii; renderer.setRenderTarget(art); renderer.render(post, postCam);
     quad.material = tilt; renderer.setRenderTarget(null); renderer.render(post, postCam);
   }
-  window.__frame = (t, q = .96) => { drawFrame(t); return renderer.domElement.toDataURL('image/jpeg', q); };
-  window.__size = [W, HH]; window.__dur = DURATION; window.__ready = true;
+  // Live view: fit the square canvas to the window and keep animating.
+  Object.assign(renderer.domElement.style, { width: 'min(100vw, 100vh)', height: 'min(100vw, 100vh)', margin: 'auto' });
+  Object.assign(document.body.style, { display: 'grid', placeItems: 'center', height: '100vh' });
+  let paused = false, clock = 0, last = performance.now();
+  addEventListener('keydown', (e) => { if (e.code === 'Space') { paused = !paused; e.preventDefault(); } });
+  const loop = (now) => {
+    if (!paused) clock += Math.min(.1, (now - last) / 1000);
+    last = now;
+    drawFrame(clock);
+    requestAnimationFrame(loop);
+  };
+  requestAnimationFrame(loop);
 }
-main().catch(e => { console.error(e); window.__error = String(e.stack || e); });
+main().catch(e => console.error(e));

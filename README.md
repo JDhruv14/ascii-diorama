@@ -1,22 +1,34 @@
 # ascii-diorama
 
-A [Claude Code](https://claude.com/claude-code) skill for making short videos of a tilt-shift miniature world rendered entirely as coloured ASCII characters.
+A [Claude Code](https://claude.com/claude-code) skill for building **tilt-shift ASCII miniatures**: small, dense, living 3D worlds drawn entirely as coloured monospace characters.
 
-The camera looks steeply down on a dense little 3D diorama and arcs slowly while the top and bottom of the frame blur away. Every pixel is drawn as a monospace glyph. Grass becomes `/ | \` strokes that lean with the wind, water becomes `~ -` with `#` foam, stone becomes `— = #`, and trees become clusters of `o * +`. Each glyph takes its colour from the 3D render. Up close it reads as text, and from a distance as a painting.
+The camera looks steeply down on a little Three.js diorama and sweeps slowly back and forth while the top and bottom of the view blur away like a scale model. Every pixel is drawn as a glyph:
+- grass as `/ | \` strokes that lean with the wind
+- water as `~ -` with `#` foam
+- stone as `— = #`
+- trees as clusters of `o * +`
 
-The output is a square 1440×1440, 24-second mp4 at 30 fps with quiet ambient sound, ready to post.
+Each glyph takes its colour from the 3D render. Up close it reads as text, and from a distance as a painting. It runs live in the browser and loops forever.
 
 ## What's inside
 
 ```
-SKILL.md                     the skill: look, workflow, tuning, pitfalls
-scripts/record.mjs           frame-exact renderer: stills, frame sheets, mp4 with audio
-scripts/fetch-assets.sh      downloads the starter scene's textures, model and sounds
-templates/scene/main.js      a complete starter miniature (Three.js)
-templates/scene/audio.json   ambience mix
+SKILL.md                   the skill: look, workflow, tuning, pitfalls
+scripts/serve.mjs          live preview that rebuilds on every reload
+scripts/fetch-assets.sh    downloads the starter scene's textures and model
+templates/scene/main.js    a complete starter miniature (Three.js)
 ```
 
-The starter scene is a line of red gates running down a green cliff to a turquoise sea. It has stone steps, lanterns, gold and red trees, white flower patches, rocks with rolling foam, a walking fox and drifting petals. It contains every system a new scene needs: terrain baking from real textures, a sea shader, instanced grass, leaves and flowers, path props, the glyph pass and tilt-shift. Swap what those systems build to make your own world, such as a harbour, a hill village, a gorge, a lighthouse or a rooftop garden.
+The starter scene is a line of red gates running down a green cliff to a turquoise sea. It has stone steps, lanterns, gold and red trees, white flower patches, rocks with rolling foam, a walking fox and drifting petals.
+
+It contains every system a new scene needs:
+- terrain baking from real textures
+- a sea shader
+- instanced grass, leaves and flowers
+- path props
+- the glyph pass and tilt-shift
+
+Swap what those systems build to make your own world, such as a harbour, a hill village, a gorge, a lighthouse or a rooftop garden.
 
 ## Install
 
@@ -24,47 +36,48 @@ The starter scene is a line of red gates running down a green cliff to a turquoi
 git clone https://github.com/JDhruv14/ascii-diorama ~/.claude/skills/ascii-diorama
 ```
 
-Claude Code picks it up automatically. Ask for "an ASCII diorama video of a fishing harbour" or run `/ascii-diorama`.
+Claude Code picks it up automatically. Ask for something like "an ASCII diorama of a fishing harbour", or run `/ascii-diorama`.
+
+To update later:
+
+```bash
+git -C ~/.claude/skills/ascii-diorama pull
+```
 
 ### Requirements
 
 - Node.js 18+
-- `three`, `esbuild` and `playwright-core` installed in or above the scene folder:
+- `three` and `esbuild` installed in or above the scene folder:
   ```bash
-  npm i three esbuild playwright-core
-  npx playwright-core install chromium
+  npm i three esbuild
   ```
-  Alternatively, point `PLAYWRIGHT_CORE` at an existing `playwright-core`.
-- `ffmpeg` on the PATH (or set `FFMPEG`)
+- A browser with WebGL 2
 
 ## Use it by hand
+
+Set up a scene from the starter:
 
 ```bash
 mkdir -p my-scene && cp ~/.claude/skills/ascii-diorama/templates/scene/* my-scene/
 bash ~/.claude/skills/ascii-diorama/scripts/fetch-assets.sh my-scene
 ```
 
-Check stills first, then motion in consecutive frames, then render the full video:
+Run it:
 
 ```bash
-node ~/.claude/skills/ascii-diorama/scripts/record.mjs my-scene --stills 6,12,18
-```
-```bash
-node ~/.claude/skills/ascii-diorama/scripts/record.mjs my-scene --seq 12,6
-```
-```bash
-node ~/.claude/skills/ascii-diorama/scripts/record.mjs my-scene
+node ~/.claude/skills/ascii-diorama/scripts/serve.mjs my-scene
 ```
 
-The video lands at `my-scene/my-scene.mp4`. Stills and frame sheets go to `my-scene/out/`.
+Open `http://127.0.0.1:5173/`. Reload the page after editing `my-scene/main.js`, and press Space to pause.
+
+For a static copy, `index.html`, `build/main.js` and `assets/` are everything the page needs.
 
 ## How it works
 
 1. Each material writes a surface class (grass, water, stone and so on) into the alpha channel of a half-float render target.
-2. A full-screen shader splits the frame into a 200×100 grid. For each cell it samples the render at the matching mip level, reads the class and measures the brightness gradient. It then picks a glyph from a per-class rule, with wind noise for grass and water and edge direction for stone.
+2. A full-screen shader splits the view into a 200×100 grid. For each cell it samples the render at the matching mip level, reads the class and measures the brightness gradient. It then picks a glyph from a per-class rule, with wind noise for grass and water and edge direction for stone.
 3. The glyph is drawn from a canvas-generated atlas, coloured with the graded render colour, over a dim blurred copy of the scene.
 4. A tilt-shift pass blurs the top and bottom bands on a golden-angle disc.
-5. `record.mjs` bundles the scene with esbuild, serves it locally and drives headless Chromium frame by frame through `window.__frame(t)`. It pipes the frames to ffmpeg, then mixes in the audio from `audio.json`.
 
 ## Asset licences
 
@@ -76,10 +89,8 @@ The video lands at `my-scene/my-scene.mp4`. Stills and frame sheets go to `my-sc
 | Fox model | PixelMannen, via [Khronos glTF Sample Assets](https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/Fox) | CC0 |
 | Fox rig and animation | tomkranis | CC BY 4.0, credit required |
 | Fox glTF conversion | @AsoboStudio and @scurest | CC BY 4.0, credit required |
-| Ocean Waves on a Tropical Beach | Jarrod Stanley, [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Ocean_Waves_on_a_Tropical_Beach.ogg) | CC0 |
-| Cicadas in Greece | Channel R, [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Cicadas_in_Greece.ogg) | Public domain |
 
-If your video uses the fox, credit tomkranis, @AsoboStudio and @scurest.
+If what you publish shows the fox, credit tomkranis, @AsoboStudio and @scurest.
 
 ## Licence
 
